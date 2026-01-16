@@ -394,7 +394,11 @@ def _export_quantized_weight(
 
 
 def _export_hf_checkpoint(
-    model: nn.Module, dtype: torch.dtype | None = None, is_modelopt_qlora: bool = False, **kwargs
+    model: nn.Module,
+    extra_weights: dict[str, torch.Tensor],
+    dtype: torch.dtype | None = None,
+    is_modelopt_qlora: bool = False,
+    **kwargs
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Exports the torch model to the packed checkpoint with original HF naming.
 
@@ -486,6 +490,7 @@ def _export_hf_checkpoint(
         warnings.warn("accelerate is not installed, hooks will not be removed")
 
     quant_config = get_quant_config(model, is_modelopt_qlora=is_modelopt_qlora)
+    quant_config["quantization"]["exclude_modules"].append("model.layers.46*")
 
     kv_cache_max_bound = 0
     kv_cache_format = quant_config["quantization"]["kv_cache_quant_algo"]
@@ -551,6 +556,8 @@ def _export_hf_checkpoint(
     quantized_state_dict = postprocess_state_dict(
         quantized_state_dict, kv_cache_max_bound, kv_cache_format, is_modelopt_qlora
     )
+
+    quantized_state_dict.update(extra_weights)
 
     return quantized_state_dict, quant_config
 

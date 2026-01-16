@@ -15,6 +15,7 @@
 
 import copy
 import glob
+import json
 import os
 import shutil
 import sys
@@ -26,6 +27,7 @@ import torch
 import transformers
 from accelerate import infer_auto_device_map, init_empty_weights
 from accelerate.utils import get_max_memory
+from safetensors import safe_open
 from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
@@ -399,6 +401,21 @@ def get_model(
                 device_map=device_map,
                 **model_kwargs,
             )
+
+            with open(f"{ckpt_path}/model.safetensors.index.json", encoding="utf8") as ckpt_f:
+                weight_map = json.load(ckpt_f)["weight_map"]
+
+            mtp_weight_map = {
+                name: tensor
+                for name, tensor in weight_map.items()
+                if name.startswith("model.layers.46.")
+            }
+            mtp_weights = {}
+            for wight_name in mtp_weight_map:
+                shard = mtp_weight_map[wight_name]
+                with safe_open(f"{ckpt_path}/{shard}", framework="pt") as shard_f:
+                    mtp_weights[wight_name] = shard_f.get_tensor(wight_name).to(device)
+
     model.eval()
 
     # If device_map was disabled (None), manually move model to target device
@@ -409,7 +426,7 @@ def get_model(
     if device == "cuda" and not is_model_on_gpu(model):
         print("Warning: Some parameters are not on a GPU. Calibration can be slow or hit OOM")
 
-    return model
+    return model, mtp_weights
 
 
 def is_model_on_gpu(model) -> bool:
