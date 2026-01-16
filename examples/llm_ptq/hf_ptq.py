@@ -250,7 +250,7 @@ def load_model(args: argparse.Namespace):
     # If low memory mode is enabled, we compress the model while loading the HF checkpoint.
     calibration_only = False
     if not args.low_memory_mode:
-        full_model = get_model(
+        full_model, mtp_weights = get_model(
             args.pyt_ckpt_path,
             args.device,
             gpu_mem_percentage=args.gpu_max_mem_percentage,
@@ -349,6 +349,7 @@ def load_model(args: argparse.Namespace):
 
     return (
         full_model,
+        mtp_weights,
         language_model,
         model_type,
         calibration_only,
@@ -457,6 +458,7 @@ def mono_quantize(
 def export_quantized(
     args: argparse.Namespace,
     full_model: torch.nn.Module,
+    mtp_weights: dict[str, torch.Tensor],
     language_model: torch.nn.Module,
     model_type: str | None,
     tokenizer: PreTrainedTokenizerBase | None,
@@ -537,6 +539,7 @@ def export_quantized(
 
             export_hf_checkpoint(
                 full_model,
+                mtp_weights,
                 export_dir=export_path,
             )
 
@@ -684,6 +687,7 @@ def post_quantize(
 def quantize_main(
     args: argparse.Namespace,
     full_model: torch.nn.Module,
+    mtp_weights: dict[str, torch.Tensor],
     language_model: torch.nn.Module,
     model_type: str | None,
     calibration_only: bool,
@@ -805,7 +809,7 @@ def quantize_main(
         is_nemotron_vl_model,
         first_text_speech_dataset,
     )
-    export_quantized(args, full_model, language_model, model_type, tokenizer, default_padding_side)
+    export_quantized(args, full_model, mtp_weights, language_model, model_type, tokenizer, default_padding_side)
 
 
 def parse_args() -> argparse.Namespace:
@@ -987,6 +991,7 @@ def main(args: argparse.Namespace):
 
     (
         full_model,
+        mtp_weights,
         language_model,
         model_type,
         calibration_only,
@@ -1004,6 +1009,7 @@ def main(args: argparse.Namespace):
         quantize_main(
             args,
             full_model,
+            mtp_weights,
             language_model,
             model_type,
             calibration_only,
